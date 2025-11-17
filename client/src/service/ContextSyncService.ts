@@ -1,4 +1,3 @@
-import { v7 as uuidv7 } from 'uuid';
 import { MessageError } from '../model/Error';
 import { ContextItem, Message, MessageKindEnum, StatusCodeEnum } from '../model/Message';
 import { StateEnum, StateEnumKeys } from '../model/State';
@@ -14,7 +13,6 @@ export interface ContextSyncOptions {
 	contextSwitchRejected: (reason: string) => void;
 	onClose: () => void;
 	onError: (error: MessageError) => void;
-	timeout?: number; // In seconds.
 	debugMode?: boolean;
 }
 
@@ -24,7 +22,6 @@ export class ContextSyncService {
 	private version: number;
 	private application: string;
 	private debugMode: boolean;
-	private timeout: number; // In seconds. How long to wait for a response from the host after sending a context change request. Unused in this demo.
 	private onConnectedCallback: () => void;
 	private onSubscribedCallback: (rejectReason?: string, statusCode?: number) => void;
 	private switchContextCallback: (ctx?: ContextItem[]) => void; // Tell the frontend to switch context.
@@ -40,15 +37,11 @@ export class ContextSyncService {
 	private newContext?: ContextItem[];
 	private connected = false;
 	private subscribed = false;
-	private transactionId?: string;
-
-	private DEFAULT_TIMEOUT = 10;
 
 	constructor({
 		url,
 		version,
 		application,
-		timeout,
 		debugMode,
 		onConnected,
 		onSubscribed,
@@ -62,7 +55,6 @@ export class ContextSyncService {
 		this.port = this.url.port;
 		this.version = version;
 		this.application = application;
-		this.timeout = timeout || this.DEFAULT_TIMEOUT;
 		this.debugMode = debugMode ?? false;
 		this.onConnectedCallback = onConnected;
 		this.onSubscribedCallback = onSubscribed;
@@ -74,8 +66,6 @@ export class ContextSyncService {
 
 		this.state = StateEnum.waiting;
 	}
-
-	private sleep = (s: number) => new Promise((resolve) => setTimeout(resolve, 1000 * s));
 
 	private setState = (state: StateEnumKeys) => {
 		if (state === this.state) {
@@ -202,14 +192,12 @@ export class ContextSyncService {
 				break;
 			case MessageKindEnum.context_change_request:
 				this.newContext = message.context;
-				this.transactionId = message.transaction_id;
 				this.contextSwitchRequestCallback(message.context);
 				break;
 			case MessageKindEnum.context_change_accept:
 				this.previousContex = this.newContext;
 				this.context = this.newContext;
 				this.newContext = undefined;
-				this.transactionId = undefined;
 
 				this.switchContextCallback(this.context);
 				this.setState(StateEnum.waiting);
@@ -222,7 +210,6 @@ export class ContextSyncService {
 				this.contextSwitchRejectedCallback(message.rejection?.reason ?? 'Unknown reason.', this.newContext);
 
 				this.newContext = undefined;
-				this.transactionId = undefined;
 				this.setState(StateEnum.waiting);
 				break;
 			case MessageKindEnum.subscription_request:
@@ -252,12 +239,6 @@ export class ContextSyncService {
 		});
 	};
 
-	private rollback = () => {
-		this.switchContextCallback(this.previousContex);
-		this.context = this.previousContex;
-		this.previousContex = undefined;
-	};
-
 	readonly accept = () => {
 		this.previousContex = this.context;
 		this.context = this.newContext;
@@ -266,24 +247,24 @@ export class ContextSyncService {
 		this.switchContextCallback(this.context);
 		this.send({
 			kind: MessageKindEnum.context_change_accept,
-			transaction_id: this.transactionId,
+			context: this.context,
 		});
 
 		this.setState(StateEnum.waiting);
 	};
 
 	readonly reject = () => {
-		this.newContext = undefined;
-
 		this.send({
 			kind: MessageKindEnum.context_change_reject,
-			transaction_id: this.transactionId,
+			current_context: this.context,
+			context: this.newContext,
 			rejection: {
-				reason: 'reason here',
+				reason: 'rejection reason here',
 				status: StatusCodeEnum.Conflict,
 			},
 		});
 
+		this.newContext = undefined;
 		this.setState(StateEnum.waiting);
 	};
 
@@ -293,10 +274,8 @@ export class ContextSyncService {
 		}
 
 		this.newContext = ctx;
-		this.transactionId = uuidv7();
 		this.send({
 			kind: MessageKindEnum.context_change_request,
-			transaction_id: this.transactionId,
 			context: ctx,
 		});
 	};

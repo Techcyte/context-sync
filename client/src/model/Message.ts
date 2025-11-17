@@ -7,6 +7,7 @@ export const MessageKindEnum = {
 	context_change_request: 'ctx-change-request', // Request to change the current context.
 	context_change_accept: 'ctx-change-accept', // The requestee accepts the context change request.
 	context_change_reject: 'ctx-change-reject', // One of the parties rejects the change request with a given reason.
+	empty_context: 'ctx-null', // Sent when the user navigates away from the active context to a page without an active context.
 	out_of_sync_error: 'sync-error', // Sent if there is an error that results in a desync.
 } as const;
 
@@ -56,9 +57,9 @@ export interface ConnectionInfo {
 
 export interface Message {
 	kind: MessageKindEnumKeys;
-	transaction_id?: string;
 	info?: ConnectionInfo;
 	context?: ContextItem[];
+	current_context?: ContextItem[];
 	rejection?: MessageRejection;
 	error?: MessageError;
 }

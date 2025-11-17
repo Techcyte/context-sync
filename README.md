@@ -2,9 +2,14 @@
 
 This is a demo repository for the Local Interconnection Service Protocol (LIS Protocol).
 
-The `host` folder contains the code for the example host. This is a `go` project. See the `README.md` file in the `host` folder for instructions on running it.
+The `host` folder contains the code for the example host. This is a `go` project. See the `README.md` file in the
+`host` folder for instructions on running it.
 
-The `client` folder contains the code for a sample client. This is an `npm` project. See the `README.md` file in the `client` folder for instructions on running it.
+The `client` folder contains the code for a sample client. This is an `npm` project. See the `README.md` file in the
+`client` folder for instructions on running it.
+
+It's important to note that the demo client and the demo host are meant to be starting points to show the flow of the
+protocol and do not handle edge cases adequetely. 
 
 ## Overview
 
@@ -29,25 +34,40 @@ The following message types are used to maintain context synchronization:
 * `ctx-change-request`
 * `ctx-change-accept`
 * `ctx-change-reject`
+* `ctx-null`
 * `sync-error`
 
 ## Message Structure
 * `kind: string` - The kind of message being sent or received. Required for all message types.
-* `info` - Required for sub-request, sub-accept, sub-reject messages.
+* `info` - Required for `sub-request`, `sub-accept`, `sub-reject messages`.
 	* `version: number` - The minimum protocol version supported by the application.
-	* `transaction_id: string` - An id unique to a specific context change.
 	* `application: string` - The name of the application sending the message.
-	* `timeout: number` - Optional, the number of seconds to wait for a response by the other application. Should only be set by the host. Client will use default value if not set.
 	* `replace_exiting_client: boolean` - Optional. If true then the subscribed client will be unsubscribed and the requesting client will become the subscribed client.
-* `context` - An array of context objects. Required for sub-accept, and ctx-change-request messages.
+* `context` - An array of context objects. Required for `sub-accept`, and `ctx-change-request` messages.
 	* `key: string` - The context kind.
 	* `value: string` - The context value.
-* `rejection` - Explains why the request was rejected. Required for sub-reject, and ctx-change-reject messages.
+* `rejection` - Explains why the request was rejected. Required for `sub-reject`, and `ctx-change-reject` messages.
 	* `reason: string` - Why the request was rejected.
 	* `status: number` - The HTTP status code for the request rejection. 
-* `error` - For errors that result in de-synchronization. Required for sync-error messages.
+* `current_context` - The current context. Required for `ctx-change-reject` messages. Can only be used with `ctx-change-reject` messages.
+	* `key: string` - The context kind.
+	* `value: string` - The context value.
+* `error` - For errors that result in de-synchronization. Required for `sync-error` messages.
 	* `message: string` - The error message.
 	* `status: number` - The HTTP status code for the error.
+
+## Status Codes
+
+| Name              | Value |
+|-------------------|-------|
+| OK                | 200   |
+| BadRequest        | 400   |
+| Conflict          | 409   |
+| ConflictWithRetry | 419   |
+| UpgradeRequired   | 426   |
+| TooManyRequests   | 429   |
+| ServerError.      | 500   |
+| Unknown.          | 520   |
 
 ## Sample Messages
 
@@ -65,14 +85,13 @@ The following message types are used to maintain context synchronization:
 
 Sent By the client to the host. The host should never send a `sub-request` message.
 
-### Subscription Accept
+### Subscription Request with Initial Context
 ```JSON
 {
-  "kind": "sub-accept",
+  "kind": "sub-request",
   "info": {
     "version": 1,
-    "application": "LIS",
-    "timeout": 30
+    "application": "Fusion"
   },
   "context": [
     {
@@ -81,12 +100,45 @@ Sent By the client to the host. The host should never send a `sub-request` messa
     }
   ]
 }
+```
 
+If the user is already in a case when they initiate context sync send a requet with the case as the initial context.
+The host should switch to the context sent in this request unless it is unable to do so.
+
+### Subscription Accept
+```JSON
+{
+  "kind": "sub-accept",
+  "info": {
+    "version": 1,
+    "application": "LIS"
+  }
+}
 ```
 
 Sent by the host to the requesting client if no client is subscribed. Also sent to a client if the subscribed client's
 connection is closed, indicating the the client that previously had its `sub-request` rejected is now the subscribed
 client. The client should never send a `sub-accept` message.
+
+### Subscription Accept with Initial Context
+```JSON
+{
+  "kind": "sub-accept",
+  "info": {
+    "version": 1,
+    "application": "LIS"
+  },
+  "context": [
+    {
+      "key": "case",
+      "value": "N123456"
+    }
+  ]
+}
+```
+
+If the host has an active context when the client makes a subscription request the host should include that context in
+the `sub-accept` message.
 
 ### Subscription Reject
 ```JSON
@@ -94,8 +146,7 @@ client. The client should never send a `sub-accept` message.
   "kind": "sub-reject",
   "info": {
     "version": 1,
-    "application": "LIS",
-    "timeout": 30
+    "application": "LIS"
   },
   "rejection": {
     "reason": "Client already connected.",
@@ -115,7 +166,6 @@ send a `sub-reject` message.
 ```JSON
 {
   "kind": "ctx-change-request",
-  "transaction_id": "019a3b03-4225-70fe-88c9-14edfe5b65e6",
   "context": [
     {
       "key": "case",
@@ -125,40 +175,93 @@ send a `sub-reject` message.
 }
 ```
 
-Sent by either the host or the client to request changing the context. The `transaction_id` should be an id unique to
-this context change.
+Sent by either the host or the client to request changing the context.
 
 ### Context Change Accepted
 ```JSON
 {
   "kind": "ctx-change-accept",
-  "transaction_id": "019a3b03-4225-70fe-88c9-14edfe5b65e6"
+  "context": [
+    {
+      "key": "case",
+      "value": "N123456"
+    }
+  ]
 }
 ```
-
-Sent by either the host or the client to let the other know the context change request was accepted. The
-`transaction_id` should be the same `transaction_id` that was generated for the initial `ctx-change-request` message.
 
 ### Context Change Rejected
 ```JSON
 {
   "kind": "ctx-change-reject",
-  "transaction_id": "019a3b03-4225-70fe-88c9-14edfe5b65e6",
+  "current_context": [
+    {
+      "key": "case",
+      "value": "N4567890"
+    }
+  ],
+  "context": [
+    {
+      "key": "case",
+      "value": "N123456"
+    }
+  ],
   "rejection": {
-    "reason": "Case N123456 does not exist.",
-    "status": 400
+    "reason": "The doodad field has not been saved."
   }
 }
 ```
 
-Sent by either the host or the client to let the other know the context change request was rejected. The
-`transaction_id` should be the same `transaction_id` that was generated for the initial `ctx-change-request` message.
+Where `current_context` is the current context of the rejector and `context` is the context being rejected.
+
+### Context Change Rejected (Outstanding Request)
+
+If one side has an outsanding request and it recieves a new request it should send a `ctx-change-reject` message with
+the `rejection.status` set to 409.
+
+```JSON
+{
+  "kind": "ctx-change-reject",
+  "context": [
+    {
+      "key": "case",
+      "value": "N4567890"
+    }
+  ]
+  "context": [
+    {
+      "key": "case",
+      "value": "N123456"
+    }
+  ],
+  "rejection": {
+    "reason": "Rejected because of outstanding request.",
+	"status": 409
+  }
+}
+```
+
+### Empty Context
+```JSON
+{
+  "kind": "ctx-null"
+}
+```
+
+Sent when the sender has no current context. As an example the user could navigate from a case to the worklist and no
+longer have a context. This would be sent to let the other know the sender is not in sync but there isn't an out of
+sync error either.
 
 ### Sync Error
 ```JSON
 {
   "kind": "sync-error",
-  "transaction_id": "019a3b03-4225-70fe-88c9-14edfe5b65e6",
+  "context": [
+    {
+      "key": "case",
+      "value": "N123456"
+    }
+  ],
   "error": {
     "message": "Failed to navigate to N123456",
     "status": 500
@@ -172,13 +275,27 @@ agreed to swwitch to a new context and after sending the `ctx-change-accept` mes
 new context due to an unexpected internal error. The host would send a `sync-error` error and the client could decide
 to show an error message to the user and potentially rollback to the previous context to restore syncronization.
 
-`transaction_id` is optional here and would refer to the context change request relevant to the error.
-
 ## Scenarios
 
 The following scenarios are from the point of view of the client.
 
 ### Client connects to host and accepts new context:
+1. Connect to websocket
+2. Send `sub-request` message with connection info
+3. Receive `sub-accept` message with connection info
+6. Receive `ctx-change-request` message with new context
+7. Navigate to new context
+8. Send `ctx-change-accept` message
+
+### Client with initial context connects to host and accepts new context:
+1. Connect to websocket
+2. Send `sub-request` message with connection info and initial context
+3. Receive `sub-accept` message with connection info and same initial context
+6. Receive `ctx-change-request` message with new context
+7. Navigate to new context
+8. Send `ctx-change-accept` message
+
+### Client connects to host with initial context and accepts new context:
 1. Connect to websocket
 2. Send `sub-request` message with connection info
 3. Receive `sub-accept` message with connection info and initial context
@@ -188,26 +305,26 @@ The following scenarios are from the point of view of the client.
 7. Navigate to new context
 8. Send `ctx-change-accept` message
 
-### Client connects to host and rejects new context:
+### Client connects to host with initial context and fails to navigate to new context:
 1. Connect to websocket
 2. Send `sub-request` message with connection info
 3. Receive `sub-accept` message with connection info and initial context
 4. Navigate to initial context
 5. Send `ctx-change-accept` message
 6. Receive `ctx-change-request` message with new context
-7. Fail or refuse to navigate to new context
-8. Send `ctx-change-reject` message with reason
+7. Fail to navigate to new context, show the user an error
+8. Send `sync-error` message with error message and status code
 
 ### Client attempts to connect while host has active connection:
 1. Connect to websocket
 2. Send `sub-request` message with connection info
-3. Receive `sub-reject` message with connection info and rejection reason
-4. Keep connection open and wait, or close connection
+3. Receive `sub-reject` message with connection info, rejection reason, and status code 409
+4. Close connection
 
 ### Client attempts to connect while host has active connection later becomes active connection:
 1. Connect to websocket
 2. Send `sub-request` message with connection info
-3. Receive `sub-reject` message with connection info and rejection reason
+3. Receive `sub-reject` message with connection info, rejection reason, and status code 419
 4. Keep connection open and wait
 5. Receive `sub-accept` message with connection info and initial context
 6. Navigate to initial context
@@ -221,8 +338,8 @@ The following scenarios are from the point of view of the client.
 5. Send `ctx-change-accept` message
 6. User clicks on new case
 7. Send `ctx-change-request` message with new context
-8. Receive `ctx-change-accept` message
-9. Navigate to new context
+8. Optimistically navigate to new context
+9. Receive `ctx-change-accept` message
 
 ### Host rejects context change request:
 1. Connect to websocket
@@ -232,22 +349,32 @@ The following scenarios are from the point of view of the client.
 5. Send `ctx-change-accept` message
 6. User clicks on new case
 7. Send `ctx-change-request` message with new context
-8. Receive `ctx-change-reject` message with reason
-9. Stay on current context, show message with rejection reason to user
+8. Optimistically navigate to new context
+9. Receive `ctx-change-reject` message with reason
+10. Show the user an error message so they know the context is out of sync
+
+### User navigates from case view to worklist view:
+1. Connect to websocket
+2. Send `sub-request` message with connection info
+3. Receive `sub-accept` message with connection info and initial context
+4. Navigate to initial context
+5. Send `ctx-change-accept` message
+6. User navigates to worklist from the case view
+7. Send `ctx-null` message
 
 ### Client connects to host and fails to navigate to initial context:
 1. Connect to websocket
 2. Send `sub-request` message with connection info
 3. Receive `sub-accept` message with connection info and initial context
 4. Fail to navigate to initial context, indicate to user the connection is still open but out of sync
-5. Send `ctx-change-reject` message with reason
+5. Send `sync-error` message with error message and status code
 
 ### Client connects to host and fails to navigate to initial context, succeeds with later context:
 1. Connect to websocket
 2. Send `sub-request` message with connection info
 3. Receive `sub-accept` message with connection info and initial context
 4. Fail to navigate to initial context, indicate to user the connection is still open but out of sync
-5. Send `ctx-change-reject` message with reason
+5. Send `sync-error` message
 6. Receive `ctx-change-request` message with new context
 7. Navigate to new context
 8. Send `ctx-change-accept` message
@@ -260,8 +387,8 @@ The following scenarios are from the point of view of the client.
 5. Send `ctx-change-reject` message with reason
 6. User clicks on new case
 7. Send `ctx-change-request` message with new context
-8. Receive `ctx-change-accept` message
-9. Navigate to new context
+8. Optimistically navigate to new context
+9. Receive `ctx-change-accept` message
 
 ### Client successfully requests context change and fails to navigate:
 1. Connect to websocket
@@ -271,8 +398,8 @@ The following scenarios are from the point of view of the client.
 5. Send `ctx-change-accept` message
 6. User clicks on new case
 7. Send `ctx-change-request` message with new context
+8. Fail to optimistically navigate to new context
 8. Receive `ctx-change-accept` message
-9. Fail to navigate to new context
 10. Send `sync-error` message with error message and status code
 
 ### Host successfully requests context change and fails to switch:
@@ -286,5 +413,20 @@ The following scenarios are from the point of view of the client.
 8. Navigate to new context.
 9. Send `ctx-change-accept` message
 10. LIS fails to switch to new context
-11. Receive sync-error message with error message and status code
-12. Indicate to user the connection is still open but out of sync (maybe navigate to previous context)
+11. Receive `sync-error` message with error message and status code
+12. Indicate to user the connection is still open but out of sync
+
+### Reccieve context change request with outstanding context change request:
+1. Connect to websocket
+2. Send `sub-request` message with connection info
+3. Receive `sub-accept` message with connection info and initial context
+4. Navigate to initial context
+5. Send `ctx-change-accept` message
+6. User clicks on new case
+7. Send `ctx-change-request` message with new context
+8. Optimistically navigate to new context
+9. Receive `ctx-change-request` message with new context
+10. Send `ctx-change-reject` message with reason and status code indicating there is an outstanding request (409)
+11. Receive `ctx-change-accept` or `ctx-change-reject` message.
+    * If `ctx-change-reject` show the user a desync error and send a `sync-error` message
+	* If `ctx-change-accept` stay at currect case.

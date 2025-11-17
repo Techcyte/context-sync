@@ -30,10 +30,10 @@ type MessageError struct {
 }
 
 type Message struct {
-	Kind          MessageKind       `json:"kind"`
-	TransactionID *string           `json:"transaction_id,omitempty"`
-	Info          *ConnectionInfo   `json:"info,omitempty"`
-	Context       []ContextItem     `json:"context,omitempty"`
-	Rejection     *MessageRejection `json:"rejection,omitempty"`
-	Error         *MessageError     `json:"error,omitempty"`
+	Kind           MessageKind       `json:"kind"`
+	Info           *ConnectionInfo   `json:"info,omitempty"`
+	Context        []ContextItem     `json:"context,omitempty"`
+	CurrentContext []ContextItem     `json:"current_context,omitempty"`
+	Rejection      *MessageRejection `json:"rejection,omitempty"`
+	Error          *MessageError     `json:"error,omitempty"`
 }

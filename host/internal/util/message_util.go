@@ -2,8 +2,6 @@ package util
 
 import (
 	"tcs/internal/model"
-
-	"github.com/google/uuid"
 )
 
 func NewSubRequestMessage(application string, replaceExistingClient bool) model.Message {
@@ -60,34 +58,37 @@ func NewSubRejectMessage(application string, timeout *float64, reason string, st
 }
 
 func NewCtxChangeMessage(caseNumber string) model.Message {
-	transactionID := uuid.New().String()
-
 	return model.Message{
-		Kind:          model.ContextChangeRequest,
-		TransactionID: &transactionID,
+		Kind: model.ContextChangeRequest,
 		Context: []model.ContextItem{
 			{Key: model.CaseNumber, Value: caseNumber},
 		},
 	}
 }
 
-func NewCtxAcceptMessage(transactionID string) model.Message {
+func NewCtxAcceptMessage(context []model.ContextItem) model.Message {
 	return model.Message{
-		Kind:          model.ContextChangeAccept,
-		TransactionID: &transactionID,
+		Kind:    model.ContextChangeAccept,
+		Context: context,
 	}
 }
 
-func NewCtxRejectMessage(transactionID, reason string, status model.StatusCode) model.Message {
+func NewCtxRejectMessage(
+	currentContext []model.ContextItem,
+	rejectedContext []model.ContextItem,
+	reason string,
+	status model.StatusCode,
+) model.Message {
 	rejection := model.MessageRejection{
 		Reason: reason,
 		Status: status,
 	}
 
 	return model.Message{
-		Kind:          model.ContextChangeReject,
-		TransactionID: &transactionID,
-		Rejection:     &rejection,
+		Kind:           model.ContextChangeReject,
+		Context:        rejectedContext,
+		CurrentContext: currentContext,
+		Rejection:      &rejection,
 	}
 }
 

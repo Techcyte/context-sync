@@ -25,7 +25,6 @@ type Manager struct {
 	Upgrader           websocket.Upgrader      // Used for the websocket connection.
 	Context            []model.ContextItem     // The current context.
 	VoteContext        []model.ContextItem     // The context in the context change request.
-	TransactionID      string                  // The transaction id for the most recent context change request.
 
 	// For the TUI
 	CurrentCase   string   // The case number that is displayed to the user. This is the case number in the current context.
@@ -157,9 +156,6 @@ func (m *Manager) HandleMessage(client model.Client, message model.Message) {
 		m.VoteContext = message.Context
 		m.VoteCase = m.CaseNumberFromContext(message.Context)
 		m.Voting = true
-		if message.TransactionID != nil {
-			m.TransactionID = *message.TransactionID
-		}
 
 		if m.AutoAccept {
 			m.Accept()
@@ -225,18 +221,18 @@ func (m *Manager) Accept() {
 	m.VoteCase = ""
 
 	client := m.Clients[m.SubscribedClientID]
-	message := util.NewCtxAcceptMessage(m.TransactionID)
+	message := util.NewCtxAcceptMessage(m.Context)
 	m.SendMessage(client, message)
 }
 
 func (m *Manager) Reject() {
+	client := m.Clients[m.SubscribedClientID]
+	message := util.NewCtxRejectMessage(m.Context, m.VoteContext, "User rejected context change.", model.BadRequest) // Or other reason.
+	m.SendMessage(client, message)
+
 	m.Voting = false
 	m.VoteContext = []model.ContextItem{}
 	m.VoteCase = ""
-
-	client := m.Clients[m.SubscribedClientID]
-	message := util.NewCtxRejectMessage(m.TransactionID, "User rejected context change.", model.BadRequest) // Or other reason.
-	m.SendMessage(client, message)
 }
 
 func (m *Manager) ContextChangeRequest(caseNumber string) {
@@ -245,7 +241,6 @@ func (m *Manager) ContextChangeRequest(caseNumber string) {
 	}
 
 	message := util.NewCtxChangeMessage(caseNumber)
-	m.TransactionID = *message.TransactionID
 	m.VoteContext = message.Context
 	m.VoteCase = caseNumber
 
