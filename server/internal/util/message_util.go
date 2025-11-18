@@ -12,7 +12,7 @@ func NewSubRequestMessage(application string, replaceExistingClient bool) model.
 	}
 
 	return model.Message{
-		Kind: model.SubscriptionRequest,
+		Kind: model.SyncRequest,
 		Info: &info,
 	}
 }
@@ -32,7 +32,7 @@ func NewSubAcceptMessage(application string, timeout *float64, caseNumber string
 	}
 
 	return model.Message{
-		Kind:    model.SubscriptionAccept,
+		Kind:    model.SyncAccept,
 		Info:    &info,
 		Context: context,
 	}
@@ -51,7 +51,7 @@ func NewSubRejectMessage(application string, timeout *float64, reason string, st
 	}
 
 	return model.Message{
-		Kind:      model.SubscriptionReject,
+		Kind:      model.SyncReject,
 		Info:      &info,
 		Rejection: &rejection,
 	}

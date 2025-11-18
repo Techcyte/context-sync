@@ -1,9 +1,9 @@
 import { ValuesOf } from '../util/Types';
 
 export const MessageKindEnum = {
-	subscription_request: 'sub-request', // The client is requesting to subscribe.
-	subscription_accept: 'sub-accept', // The host accepts the subscription request.
-	subscription_rejection: 'sub-reject', // The host already has an active connection.
+	sync_request: 'sync-request', // The client is requesting to be synchronized.
+	sync_accept: 'sync-accept', // The server accepts the sync request.
+	sync_rejection: 'sync-reject', // The server already has an active connection.
 	context_change_request: 'ctx-change-request', // Request to change the current context.
 	context_change_accept: 'ctx-change-accept', // The requestee accepts the context change request.
 	context_change_reject: 'ctx-change-reject', // One of the parties rejects the change request with a given reason.

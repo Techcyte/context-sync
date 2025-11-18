@@ -7,7 +7,7 @@ export interface ContextSyncOptions {
 	version: number;
 	application: string;
 	onConnected: () => void;
-	onSubscribed: (rejectReason?: string, statusCode?: number) => void;
+	onSynced: (rejectReason?: string, statusCode?: number) => void;
 	switchContext: (ctx?: ContextItem[]) => void;
 	contextSwitchRequest: (ctx?: ContextItem[]) => void;
 	contextSwitchRejected: (reason: string) => void;
@@ -23,7 +23,7 @@ export class ContextSyncService {
 	private application: string;
 	private debugMode: boolean;
 	private onConnectedCallback: () => void;
-	private onSubscribedCallback: (rejectReason?: string, statusCode?: number) => void;
+	private onSyncedCallback: (rejectReason?: string, statusCode?: number) => void;
 	private switchContextCallback: (ctx?: ContextItem[]) => void; // Tell the frontend to switch context.
 	private contextSwitchRequestCallback: (ctx?: ContextItem[]) => void;
 	private contextSwitchRejectedCallback: ( reason: string, ctx?: ContextItem[]) => void;
@@ -36,7 +36,7 @@ export class ContextSyncService {
 	private previousContex?: ContextItem[];
 	private newContext?: ContextItem[];
 	private connected = false;
-	private subscribed = false;
+	private active = false;
 
 	constructor({
 		url,
@@ -44,7 +44,7 @@ export class ContextSyncService {
 		application,
 		debugMode,
 		onConnected,
-		onSubscribed,
+		onSynced,
 		switchContext,
 		contextSwitchRequest,
 		contextSwitchRejected,
@@ -57,7 +57,7 @@ export class ContextSyncService {
 		this.application = application;
 		this.debugMode = debugMode ?? false;
 		this.onConnectedCallback = onConnected;
-		this.onSubscribedCallback = onSubscribed;
+		this.onSyncedCallback = onSynced;
 		this.switchContextCallback = switchContext;
 		this.contextSwitchRequestCallback = contextSwitchRequest;
 		this.contextSwitchRejectedCallback = contextSwitchRejected;
@@ -94,13 +94,13 @@ export class ContextSyncService {
 
 		const { kind } = message;
 
-		if (!this.subscribed) {
-			if (kind !== MessageKindEnum.subscription_request) {
+		if (!this.active) {
+			if (kind !== MessageKindEnum.sync_request) {
 				if (this.debugMode) {
-					console.log(`CtxSync: Tried to send ${kind} message while not subscribed, returning from send.`);
+					console.log(`CtxSync: Tried to send ${kind} message while not active, returning from send.`);
 				}
 
-				this.onErrorCallback({ message: `Tried to send ${kind} message while not subscribed.`, status: StatusCodeEnum.BadRequest });
+				this.onErrorCallback({ message: `Tried to send ${kind} message while not active.`, status: StatusCodeEnum.BadRequest });
 				return;
 			}
 		}
@@ -119,8 +119,8 @@ export class ContextSyncService {
 		}
 
 		switch (kind) {
-			case MessageKindEnum.subscription_request:
-				this.setState(StateEnum.subscription_request_sent);
+			case MessageKindEnum.sync_request:
+				this.setState(StateEnum.sync_request_sent);
 				break;
 			case MessageKindEnum.context_change_request:
 				this.setState(StateEnum.ctx_change_request_sent);
@@ -131,14 +131,14 @@ export class ContextSyncService {
 			case MessageKindEnum.context_change_accept:
 			case MessageKindEnum.out_of_sync_error:
 				break;
-			case MessageKindEnum.subscription_accept:
-			case MessageKindEnum.subscription_rejection:
+			case MessageKindEnum.sync_accept:
+			case MessageKindEnum.sync_rejection:
 				if (this.debugMode) {
-					console.log('Tried to send subscription accept/reject message. These can only be sent by the host.');
+					console.log('Tried to send sync accept/reject message. These can only be sent by the server.');
 				}
 
 				this.onErrorCallback({
-					message: 'Tried to send subscription accept/reject message. These can only be sent by the host.',
+					message: 'Tried to send sync accept/reject message. These can only be sent by the server.',
 					status: StatusCodeEnum.BadRequest
 				});
 				this.setState(StateEnum.error);
@@ -175,19 +175,19 @@ export class ContextSyncService {
 
 		const { kind } = message;
 		switch (kind) {
-			case MessageKindEnum.subscription_accept:
+			case MessageKindEnum.sync_accept:
 				this.context = message.context;
-				this.subscribed = true;
-				this.onSubscribedCallback();
+				this.active = true;
+				this.onSyncedCallback();
 				if (this.context) {
 					this.switchContextCallback(this.context);
 				}
 
 				this.setState(StateEnum.waiting);
 				break;
-			case MessageKindEnum.subscription_rejection:
-				this.subscribed = false;
-				this.onSubscribedCallback(message.rejection?.reason, message.rejection?.status);
+			case MessageKindEnum.sync_rejection:
+				this.active = false;
+				this.onSyncedCallback(message.rejection?.reason, message.rejection?.status);
 				this.setState(StateEnum.waiting);
 				break;
 			case MessageKindEnum.context_change_request:
@@ -212,9 +212,9 @@ export class ContextSyncService {
 				this.newContext = undefined;
 				this.setState(StateEnum.waiting);
 				break;
-			case MessageKindEnum.subscription_request:
+			case MessageKindEnum.sync_request:
 				if (this.debugMode) {
-					console.log(`Received ${kind} message, the host should never send this event.`);
+					console.log(`Received ${kind} message, the server should never send this event.`);
 				}
 
 				break;
@@ -229,9 +229,9 @@ export class ContextSyncService {
 		}
 	};
 
-	private subscribe = () => {
+	private synchronize = () => {
 		this.send({
-			kind: MessageKindEnum.subscription_request,
+			kind: MessageKindEnum.sync_request,
 			info: {
 				version: 1,
 				application: this.application,
@@ -290,12 +290,12 @@ export class ContextSyncService {
 				console.log('CtxSync: Already connected.');
 			}
 
-			if (!this.subscribed) {
+			if (!this.active) {
 				if (this.debugMode) {
-					console.log('CtxSync: Connected but not subscribed, calling subscribe.');
+					console.log('CtxSync: Connected but not active, calling synchronize.');
 				}
 
-				this.subscribe();
+				this.synchronize();
 			}
 
 			return;
@@ -329,7 +329,7 @@ export class ContextSyncService {
 
 			this.connected = true;
 			this.onConnectedCallback();
-			this.subscribe();
+			this.synchronize();
 		});
 
 		this.socket.addEventListener('message', (event) => {
@@ -345,7 +345,7 @@ export class ContextSyncService {
 				console.log('CtxSync: WebSocket closed:', event);
 			}
 
-			this.subscribed = false;
+			this.active = false;
 			this.connected = false;
 		});
 	};
@@ -353,7 +353,7 @@ export class ContextSyncService {
 	readonly close = () => {
 		if (this.socket !== undefined && this.socket.readyState === WebSocket.OPEN) {
 			this.socket.close();
-			this.subscribed = false;
+			this.active = false;
 			this.connected = false;
 			this.onCloseCallback();
 		}
@@ -363,8 +363,8 @@ export class ContextSyncService {
 		return this.connected;
 	};
 
-	readonly isSubscribed = () => {
-		return this.subscribed;
+	readonly isActive = () => {
+		return this.active;
 	};
 
 	readonly protocolVersion = () => {

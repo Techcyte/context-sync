@@ -8,10 +8,10 @@ interface DemoPageType {
 	newCase?: string;
 	rejectCallback: () => void;
 	connected: boolean;
-	subscribed: boolean;
+	active: boolean;
 }
 
-const DemoPage = ({ service, caseNumber, newCase, rejectCallback, connected, subscribed }: DemoPageType) => {
+const DemoPage = ({ service, caseNumber, newCase, rejectCallback, connected, active }: DemoPageType) => {
 	const [userCaseNumber, setUserCaseNumber] = useState<string | undefined>();
 	const inputRef = useRef<HTMLInputElement>(null);
 
@@ -43,7 +43,7 @@ const DemoPage = ({ service, caseNumber, newCase, rejectCallback, connected, sub
 		<Box m={2}>
 			<Box display="flex" flexDirection="row" gap={2}>
 				<Typography>Connected: {connected ? 'yes' : 'no'}</Typography>
-				<Typography>Subscribed: {subscribed ? 'yes' : 'no'}</Typography>
+				<Typography>Active: {active ? 'yes' : 'no'}</Typography>
 				<Typography> Protocol Version: {service.current?.protocolVersion()}</Typography>
 			</Box>
 			{!connected && (
@@ -57,7 +57,7 @@ const DemoPage = ({ service, caseNumber, newCase, rejectCallback, connected, sub
 					<TextField
 						label="Case Number"
 						inputRef={inputRef}
-						disabled={!subscribed}
+						disabled={!active}
 						value={userCaseNumber ?? ''}
 						onChange={(e) => setUserCaseNumber(e.target.value)} 
 						onKeyDown={(e) => {

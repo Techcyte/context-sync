@@ -1,4 +1,4 @@
-package host
+package server
 
 import (
 	"encoding/json"
@@ -18,17 +18,17 @@ const APPLICATION_NAME = "techcyte-context-sync"
 const DEFAULT_TIMEOUT = 30 // In seconds.
 
 type Manager struct {
-	Address            string                  // The address we are listening on.
-	Clients            map[string]model.Client // A map of client ids to clients.
-	SubscribedClientID string                  // The client id for the currently subscribed client.
-	disconnect         chan model.Client       // Used to track when clients disconnect.
-	Upgrader           websocket.Upgrader      // Used for the websocket connection.
-	Context            []model.ContextItem     // The current context.
-	VoteContext        []model.ContextItem     // The context in the context change request.
+	Address        string                  // The address we are listening on.
+	Clients        map[string]model.Client // A map of client ids to clients.
+	SyncedClientID string                  // The client id for the currently synchronized client.
+	disconnect     chan model.Client       // Used to track when clients disconnect.
+	Upgrader       websocket.Upgrader      // Used for the websocket connection.
+	Context        []model.ContextItem     // The current context.
+	VoteContext    []model.ContextItem     // The context in the context change request.
 
 	// For the TUI
 	CurrentCase   string   // The case number that is displayed to the user. This is the case number in the current context.
-	Voting        bool     // "Voting" in this context means the client has send a context change request and the host has to accept or reject it.
+	Voting        bool     // "Voting" in this context means the client has send a context change request and the server has to accept or reject it.
 	VoteCase      string   // The case number in the context change request to be accepted or rejected.
 	AutoAccept    bool     // If true any context change request will be automatically accepted.
 	MessagesToAdd []string // Used for printing to the console in the TUI.
@@ -135,16 +135,16 @@ func (m *Manager) SetCurrentCaseFromContext() {
 
 func (m *Manager) HandleMessage(client model.Client, message model.Message) {
 	switch message.Kind {
-	case model.SubscriptionRequest:
+	case model.SyncRequest:
 		timeout := (time.Second * DEFAULT_TIMEOUT).Seconds()
-		if m.SubscribedClientID != "" {
-			message := util.NewSubRejectMessage(APPLICATION_NAME, &timeout, "Already have a subscribed client.", model.ConflictWithRetry)
+		if m.SyncedClientID != "" {
+			message := util.NewSubRejectMessage(APPLICATION_NAME, &timeout, "Already have a synchronized client.", model.ConflictWithRetry)
 			m.SendMessage(client, message)
 
 			return
 		}
 
-		m.SubscribedClientID = client.ID()
+		m.SyncedClientID = client.ID()
 		message := util.NewSubAcceptMessage(APPLICATION_NAME, &timeout, m.CurrentCase)
 		m.SendMessage(client, message)
 	case model.ContextChangeRequest:
@@ -220,13 +220,13 @@ func (m *Manager) Accept() {
 	m.VoteContext = []model.ContextItem{}
 	m.VoteCase = ""
 
-	client := m.Clients[m.SubscribedClientID]
+	client := m.Clients[m.SyncedClientID]
 	message := util.NewCtxAcceptMessage(m.Context)
 	m.SendMessage(client, message)
 }
 
 func (m *Manager) Reject() {
-	client := m.Clients[m.SubscribedClientID]
+	client := m.Clients[m.SyncedClientID]
 	message := util.NewCtxRejectMessage(m.Context, m.VoteContext, "User rejected context change.", model.BadRequest) // Or other reason.
 	m.SendMessage(client, message)
 
@@ -236,7 +236,7 @@ func (m *Manager) Reject() {
 }
 
 func (m *Manager) ContextChangeRequest(caseNumber string) {
-	if m.SubscribedClientID == "" {
+	if m.SyncedClientID == "" {
 		return
 	}
 
@@ -244,7 +244,7 @@ func (m *Manager) ContextChangeRequest(caseNumber string) {
 	m.VoteContext = message.Context
 	m.VoteCase = caseNumber
 
-	client := m.Clients[m.SubscribedClientID]
+	client := m.Clients[m.SyncedClientID]
 	m.SendMessage(client, message)
 }
 
@@ -252,15 +252,15 @@ func (m *Manager) ListenForDisconnect() {
 	for client := range m.disconnect {
 		m.Printf("Application \033[94m'%v'\033[0m disconnected", client.Application())
 		delete(m.Clients, client.ID())
-		if m.SubscribedClientID == client.ID() {
-			m.SubscribedClientID = ""
+		if m.SyncedClientID == client.ID() {
+			m.SyncedClientID = ""
 
-			// If there are other clients connected pick one to become the new subscribed client.
+			// If there are other clients connected pick one to become the new synchronized client.
 			// In this example the client we pick is random but it could be done on a FIFO basis.
 			// Or a client could be picked for whatever reason.
 			for _, nextClient := range m.Clients {
 				timeout := (time.Second * DEFAULT_TIMEOUT).Seconds()
-				m.SubscribedClientID = nextClient.ID()
+				m.SyncedClientID = nextClient.ID()
 				message := util.NewSubAcceptMessage(APPLICATION_NAME, &timeout, m.CurrentCase)
 				m.SendMessage(nextClient, message)
 				break

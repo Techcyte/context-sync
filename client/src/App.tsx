@@ -14,20 +14,20 @@ function App() {
 	const [rejectReason, setRejectReason] = useState<string | undefined>();
 	const [newCaseNumber, setNewCaseNumber] = useState<string | undefined>();
 	const [connected, setConnected] = useState(false);
-	const [subscribed, setSubscribed] = useState(false);
+	const [active, setActive] = useState(false);
 	const [showRejectAlert, setShowRejectAlert] = useState(false);
 
 	const onConnected = () => {
 		setConnected(true);
 	};
 
-	const onSubscribed = (rejectReason?: string, statusCode?: number) => {
-		setSubscribed(!rejectReason);
+	const onSynced = (rejectReason?: string, statusCode?: number) => {
+		setActive(!rejectReason);
 
 		if (!rejectReason) {
-			console.log('Subscribed!');
+			console.log('Synchronized!');
 		} else {
-			console.log(`Subscription request rejected. Reason: ${rejectReason}`);
+			console.log(`Sync request rejected. Reason: ${rejectReason}`);
 		}
 	};
 
@@ -66,7 +66,7 @@ function App() {
 
 	const onClose = () => {
 		setConnected(false);
-		setSubscribed(false);
+		setActive(false);
 		console.log('Connection closed.');
 	}
 
@@ -99,7 +99,7 @@ function App() {
 			application: 'Demo',
 			debugMode: true,
 			onConnected,
-			onSubscribed,
+			onSynced,
 			switchContext,
 			contextSwitchRequest,
 			contextSwitchRejected,
@@ -115,7 +115,7 @@ function App() {
 	return (
 		<ThemeProvider theme={darkTheme}>
 			<CssBaseline />
-			<DemoPage service={service} caseNumber={caseNumber} newCase={newCaseNumber} rejectCallback={onReject} connected={connected} subscribed={subscribed} />
+			<DemoPage service={service} caseNumber={caseNumber} newCase={newCaseNumber} rejectCallback={onReject} connected={connected} active={active} />
 			<Snackbar
 				open={showRejectAlert}
 				autoHideDuration={6000}

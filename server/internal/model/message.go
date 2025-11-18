@@ -3,9 +3,9 @@ package model
 type MessageKind string
 
 const (
-	SubscriptionRequest  MessageKind = "sub-request"
-	SubscriptionAccept   MessageKind = "sub-accept"
-	SubscriptionReject   MessageKind = "sub-reject"
+	SyncRequest          MessageKind = "sync-request"
+	SyncAccept           MessageKind = "sync-accept"
+	SyncReject           MessageKind = "sync-reject"
 	ContextChangeRequest MessageKind = "ctx-change-request"
 	ContextChangeAccept  MessageKind = "ctx-change-accept"
 	ContextChangeReject  MessageKind = "ctx-change-reject"

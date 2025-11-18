@@ -4,7 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
-	"tcs/internal/host"
+	"tcs/internal/server"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -16,18 +16,18 @@ func main() {
 	flag.Parse()
 
 	address := fmt.Sprintf(":%v", *port)
-	manager := host.NewManager(address, *startingCase)
+	manager := server.NewManager(address, *startingCase)
 	if autoAccept != nil {
 		manager.AutoAccept = *autoAccept
 	}
 
 	go manager.ListenForDisconnect()
 	http.HandleFunc("/cm", func(w http.ResponseWriter, r *http.Request) {
-		host.Serve(manager, w, r)
+		server.Serve(manager, w, r)
 	})
 
 	// Remove tea.WithAltScreen() to NewProgram() if you want to retain the text on screen after the program exits.
-	application := host.NewApp(manager)
+	application := server.NewApp(manager)
 	_, err := tea.NewProgram(application, tea.WithAltScreen(), tea.WithMouseAllMotion()).Run()
 	if err != nil {
 		panic(err)
