@@ -9,7 +9,7 @@ The `client` folder contains the code for a sample client. This is an `npm` proj
 `client` folder for instructions on running it.
 
 It's important to note that the demo client and the demo server are meant to be starting points to show the flow of the
-protocol and do not handle edge cases adequetely. 
+protocol and do not handle edge cases adequately.
 
 ## Overview
 
@@ -48,7 +48,7 @@ The following message types are used to maintain context synchronization:
 	* `value: string` - The context value.
 * `rejection` - Explains why the request was rejected. Required for `sync-reject`, and `ctx-change-reject` messages.
 	* `reason: string` - Why the request was rejected.
-	* `status: number` - The HTTP status code for the request rejection. 
+	* `status: number` - The HTTP status code for the request rejection.
 * `current_context` - The current context. Required for `ctx-change-reject` messages. Can only be used with `ctx-change-reject` messages.
 	* `key: string` - The context kind.
 	* `value: string` - The context value.
@@ -66,8 +66,8 @@ The following message types are used to maintain context synchronization:
 | ConflictWithRetry | 419   |
 | UpgradeRequired   | 426   |
 | TooManyRequests   | 429   |
-| ServerError.      | 500   |
-| Unknown.          | 520   |
+| ServerError       | 500   |
+| Unknown           | 520   |
 
 ## Sample Messages
 
@@ -102,7 +102,7 @@ Sent By the client to the server. The server should never send a `sync-request` 
 }
 ```
 
-If the user is already in a case when they initiate context sync send a requet with the case as the initial context.
+If the user is already in a case when they initiate context sync send a request with the case as the initial context.
 The server should switch to the context sent in this request unless it is unable to do so.
 
 ### Sync Accept
@@ -137,8 +137,8 @@ synchronized client. The client should never send a `sync-accept` message.
 }
 ```
 
-If the server has an active context when the client makes a synchronized request the server should include that context
-in the `sync-accept` message.
+If the client requested an initial context in the `sync-request` message, the server should include that context
+in the `sync-accept` message. If the server is unable to switch to the requested context it should send a `sync-accept` with no context and then send a `ctx-change-request` message to request the desired context.
 
 ### Sync Reject
 ```JSON
@@ -216,7 +216,7 @@ Where `current_context` is the current context of the rejector and `context` is 
 
 ### Context Change Rejected (Outstanding Request)
 
-If one side has an outsanding request and it recieves a new request it should send a `ctx-change-reject` message with
+If one side has an outstanding request and it receives a new request it should send a `ctx-change-reject` message with
 the `rejection.status` set to 409.
 
 ```JSON
@@ -271,162 +271,212 @@ sync error either.
 
 Can be sent by either the server or the client if there is some error that causes a desynchronization before or after the
 context has been agreed upon by the server and the client. As an example lets say the both the server and the client have
-agreed to swwitch to a new context and after sending the `ctx-change-accept` message the server fails to switch to the
+agreed to switch to a new context and after sending the `ctx-change-accept` message the server fails to switch to the
 new context due to an unexpected internal error. The server would send a `sync-error` error and the client could decide
-to show an error message to the user and potentially rollback to the previous context to restore syncronization.
+to show an error message to the user and potentially rollback to the previous context to restore synchronization.
 
 ## Scenarios
 
 The following scenarios are from the point of view of the client.
 
+### Client connects to server with no initial context:
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Server
+
+    Client->>Server: Connect WebSocket
+    Client->>Server: sync-request (connection info)
+    Server->>Client: sync-accept (connection info)
+```
+
+### Client with initial context connects to server:
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Server
+    
+    Client->>Server: Connect WebSocket
+    Client->>Server: sync-request (connection info, initial context)
+    Server->>Client: sync-accept (connection info, initial context)
+```
+
 ### Client connects to server and accepts new context:
-1. Connect to websocket
-2. Send `sync-request` message with connection info
-3. Receive `sync-accept` message with connection info
-6. Receive `ctx-change-request` message with new context
-7. Navigate to new context
-8. Send `ctx-change-accept` message
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Server
+    
+    Client->>Server: Connect WebSocket
+    Client->>Server: sync-request (connection info)
+    Server->>Client: sync-accept (connection info)
+    Server->>Client: ctx-change-request (new context)
+    Note over Client: Navigate to new context
+    Client->>Server: ctx-change-accept (new context)
+```
 
 ### Client with initial context connects to server and accepts new context:
-1. Connect to websocket
-2. Send `sync-request` message with connection info and initial context
-3. Receive `sync-accept` message with connection info and same initial context
-6. Receive `ctx-change-request` message with new context
-7. Navigate to new context
-8. Send `ctx-change-accept` message
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Server
+    
+    Client->>Server: Connect WebSocket
+    Client->>Server: sync-request (connection info, initial context)
+    Server->>Client: sync-accept (connection info, initial context)
+    Server->>Client: ctx-change-request (new context)
+    Note over Client: Navigate to new context
+    Client->>Server: ctx-change-accept (new context)
+```
 
-### Client connects to server with initial context and accepts new context:
-1. Connect to websocket
-2. Send `sync-request` message with connection info
-3. Receive `sync-accept` message with connection info and initial context
-4. Navigate to initial context
-5. Send `ctx-change-accept` message
-6. Receive `ctx-change-request` message with new context
-7. Navigate to new context
-8. Send `ctx-change-accept` message
+### Client with initial context connects to server, which rejects initial context and requests new context:
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Server
+    
+    Client->>Server: Connect WebSocket
+    Client->>Server: sync-request (connection info, initial context)
+    Server->>Client: sync-accept (connection info, (no initial context))
+    Server->>Client: ctx-change-request (new context)
+    Note over Client: Navigate to new context
+    Client->>Server: ctx-change-accept (new context)
+```
 
-### Client connects to server with initial context and fails to navigate to new context:
-1. Connect to websocket
-2. Send `sync-request` message with connection info
-3. Receive `sync-accept` message with connection info and initial context
-4. Navigate to initial context
-5. Send `ctx-change-accept` message
-6. Receive `ctx-change-request` message with new context
-7. Fail to navigate to new context, show the user an error
-8. Send `sync-error` message with error message and status code
+### Client connects to server and fails to navigate to new context:
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Server
+    
+    Client->>Server: Connect WebSocket
+    Client->>Server: sync-request (connection info)
+    Server->>Client: sync-accept (connection info)
+    Server->>Client: ctx-change-request (new context)
+    Note over Client: FAIL to navigate to new context<br/>Show error to user
+    Client->>Server: ctx-change-reject (reason)
+```
 
 ### Client attempts to connect while server has active connection:
-1. Connect to websocket
-2. Send `sync-request` message with connection info
-3. Receive `sync-reject` message with connection info, rejection reason, and status code 409
-4. Close connection
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Server
+    
+    Client->>Server: Connect WebSocket
+    Client->>Server: sync-request (connection info)
+    Note over Server: Another client already synchronized
+    Server->>Client: sync-reject (connection info, rejection reason, status 409 - Conflict)
+    Client->>Server: Close connection
+```
 
 ### Client attempts to connect while server has active connection later becomes active connection:
-1. Connect to websocket
-2. Send `sync-request` message with connection info
-3. Receive `sync-reject` message with connection info, rejection reason, and status code 419
-4. Keep connection open and wait
-5. Receive `sync-accept` message with connection info and initial context
-6. Navigate to initial context
-7. Send `ctx-change-accept` message
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Server
+    
+    Client->>Server: Connect WebSocket
+    Client->>Server: sync-request (connection info)
+    Note over Server: Another client already synchronized
+    Server->>Client: sync-reject (connection info, rejection reason, status 419 - ConflictWithRetry)
+    Note over Client: Keep connection open and wait
+    Note over Server: Previous client disconnects
+    Server->>Client: sync-accept (connection info)
+	Server->>Client: ctx-change-request (new context)
+    Note over Client: Navigate to new context
+	Client->>Server: ctx-change-accept (new context)
+```
 
 ### Client successfully requests context change:
-1. Connect to websocket
-2. Send `sync-request` message with connection info
-3. Receive `sync-accept` message with connection info and initial context
-4. Navigate to initial context
-5. Send `ctx-change-accept` message
-6. User clicks on new case
-7. Send `ctx-change-request` message with new context
-8. Optimistically navigate to new context
-9. Receive `ctx-change-accept` message
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Server
+    
+    Client->>Server: Connect WebSocket
+    Client->>Server: sync-request (connection info)
+    Server->>Client: sync-accept (connection info)
+    Client->>Server: ctx-change-accept (initial context)
+    Note over Client: User clicks on new case
+    Client->>Server: ctx-change-request (new context)
+    Note over Client: Optimistically navigate to new context
+    Note over Server: Navigate to new context
+    Server->>Client: ctx-change-accept (new context)
+```
 
 ### Server rejects context change request:
-1. Connect to websocket
-2. Send `sync-request` message with connection info
-3. Receive `sync-accept` message with connection info and initial context
-4. Navigate to initial context
-5. Send `ctx-change-accept` message
-6. User clicks on new case
-7. Send `ctx-change-request` message with new context
-8. Optimistically navigate to new context
-9. Receive `ctx-change-reject` message with reason
-10. Show the user an error message so they know the context is out of sync
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Server
+    
+    Client->>Server: Connect WebSocket
+    Client->>Server: sync-request (connection info)
+    Server->>Client: sync-accept (connection info)
+    Note over Client: User clicks on new case
+    Client->>Server: ctx-change-request (new context)
+    Note over Client: Optimistically navigate to new context
+    Note over Server: Cannot navigate to new context
+    Server->>Client: ctx-change-reject (reason)
+    Note over Client: Show error message - context out of sync
+```
 
 ### User navigates from case view to worklist view:
-1. Connect to websocket
-2. Send `sync-request` message with connection info
-3. Receive `sync-accept` message with connection info and initial context
-4. Navigate to initial context
-5. Send `ctx-change-accept` message
-6. User navigates to worklist from the case view
-7. Send `ctx-null` message
-
-### Client connects to server and fails to navigate to initial context:
-1. Connect to websocket
-2. Send `sync-request` message with connection info
-3. Receive `sync-accept` message with connection info and initial context
-4. Fail to navigate to initial context, indicate to user the connection is still open but out of sync
-5. Send `sync-error` message with error message and status code
-
-### Client connects to server and fails to navigate to initial context, succeeds with later context:
-1. Connect to websocket
-2. Send `sync-request` message with connection info
-3. Receive `sync-accept` message with connection info and initial context
-4. Fail to navigate to initial context, indicate to user the connection is still open but out of sync
-5. Send `sync-error` message
-6. Receive `ctx-change-request` message with new context
-7. Navigate to new context
-8. Send `ctx-change-accept` message
-
-### Client connects to server and fails to navigate to initial context, client requests new context:
-1. Connect to websocket
-2. Send `sync-request` message with connection info
-3. Receive `sync-accept` message with connection info and initial context
-4. Fail to navigate to initial context, indicate to user the connection is still open but out of sync
-5. Send `ctx-change-reject` message with reason
-6. User clicks on new case
-7. Send `ctx-change-request` message with new context
-8. Optimistically navigate to new context
-9. Receive `ctx-change-accept` message
-
-### Client successfully requests context change and fails to navigate:
-1. Connect to websocket
-2. Send `sync-request` message with connection info
-3. Receive `sync-accept` message with connection info and initial context
-4. Navigate to initial context
-5. Send `ctx-change-accept` message
-6. User clicks on new case
-7. Send `ctx-change-request` message with new context
-8. Fail to optimistically navigate to new context
-8. Receive `ctx-change-accept` message
-10. Send `sync-error` message with error message and status code
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Server
+    
+    Client->>Server: Connect WebSocket
+    Client->>Server: sync-request (connection info)
+    Server->>Client: sync-accept (connection info)
+    Server->>Client: ctx-change-request (initial context)
+    Client->>Server: ctx-change-accept (initial context)
+    Note over Client: User navigates to worklist
+    Client->>Server: ctx-null
+```
 
 ### Server successfully requests context change and fails to switch:
-1. Connect to websocket
-2. Send `sync-request` message with connection info
-3. Receive `sync-accept` message with connection info and initial context
-4. Navigate to initial context
-5. Send `ctx-change-accept` message
-6. User clicks on new case in LIS
-7. Receive `ctx-change-request` message with new context
-8. Navigate to new context.
-9. Send `ctx-change-accept` message
-10. LIS fails to switch to new context
-11. Receive `sync-error` message with error message and status code
-12. Indicate to user the connection is still open but out of sync
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Server
+    
+    Client->>Server: Connect WebSocket
+    Client->>Server: sync-request (connection info)
+    Server->>Client: sync-accept (connection info)
+    Note over Server: User clicks on new case in LIS
+    Server->>Client: ctx-change-request (new context)
+    Note over Client: Navigate to new context
+    Client->>Server: ctx-change-accept (new context)
+    Note over Server: FAIL to switch to new context
+    Server->>Client: sync-error (error message, status)
+    Note over Client: Show out of sync indicator to user
+```
 
-### Reccieve context change request with outstanding context change request:
-1. Connect to websocket
-2. Send `sync-request` message with connection info
-3. Receive `sync-accept` message with connection info and initial context
-4. Navigate to initial context
-5. Send `ctx-change-accept` message
-6. User clicks on new case
-7. Send `ctx-change-request` message with new context
-8. Optimistically navigate to new context
-9. Receive `ctx-change-request` message with new context
-10. Send `ctx-change-reject` message with reason and status code indicating there is an outstanding request (409)
-11. Receive `ctx-change-accept` or `ctx-change-reject` message.
-    * If `ctx-change-reject` show the user a desync error and send a `sync-error` message
-	* If `ctx-change-accept` stay at currect case.
+### Receive context change request with outstanding context change request:
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Server
+    
+    Client->>Server: Connect WebSocket
+    Client->>Server: sync-request (connection info)
+    Server->>Client: sync-accept (connection info)
+    Note over Client: User clicks on new case
+    Note over Server: User clicks on new case in LIS
+    Client->>Server: ctx-change-request (new context A)
+    Note over Client: Optimistically navigate to new context A
+    Server->>Client: ctx-change-request (new context B)
+    Note over Client: Outstanding request exists
+    Client->>Server: ctx-change-reject (status 409 - outstanding request)
+    alt Server accepts client's request
+        Server->>Client: ctx-change-accept (context A)
+        Note over Client: Stay at current context A
+    else Server rejects client's request
+        Server->>Client: ctx-change-reject (status 409 - outstanding request)
+        Note over Client: Show desync error to user
+        Client->>Server: sync-error
+    end
+```
