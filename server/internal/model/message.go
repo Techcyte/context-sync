@@ -9,7 +9,8 @@ const (
 	ContextChangeRequest MessageKind = "ctx-change-request"
 	ContextChangeAccept  MessageKind = "ctx-change-accept"
 	ContextChangeReject  MessageKind = "ctx-change-reject"
-	OutOfSyncError       MessageKind = "sync-error"
+	ContextUpdateRequest MessageKind = "ctx-update-request"
+	ContextUpdate        MessageKind = "ctx-update"
 )
 
 type ConnectionInfo struct {

@@ -129,7 +129,6 @@ export class ContextSyncService {
 				this.setState(StateEnum.reject_sent);
 				break;
 			case MessageKindEnum.context_change_accept:
-			case MessageKindEnum.out_of_sync_error:
 				break;
 			case MessageKindEnum.sync_accept:
 			case MessageKindEnum.sync_rejection:

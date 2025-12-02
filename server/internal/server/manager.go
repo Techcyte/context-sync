@@ -170,8 +170,26 @@ func (m *Manager) HandleMessage(client model.Client, message model.Message) {
 	case model.ContextChangeReject:
 		m.VoteContext = []model.ContextItem{}
 		m.VoteCase = ""
-	case model.OutOfSyncError:
-		m.PrintErrString("Out of sync with client!")
+	case model.ContextUpdateRequest:
+		m.SendMessage(client, model.Message{
+			Kind:    model.ContextUpdate,
+			Context: m.Context,
+		})
+	case model.ContextUpdate:
+		if message.Error != nil {
+			m.PrintErrString("Out of sync with client! %v", message.Error.Message)
+		}
+		if len(message.Context) == 0 {
+			break
+		}
+
+		for _, item := range message.Context {
+			if item.Key == model.CaseNumber {
+				m.CurrentCase = item.Value
+				break
+			}
+		}
+		m.Context = []model.ContextItem{{Key: model.CaseNumber, Value: m.CurrentCase}}
 	default:
 		m.Printf("Unknown message kind '%v'", message.Kind)
 	}

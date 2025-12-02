@@ -7,8 +7,8 @@ export const MessageKindEnum = {
 	context_change_request: 'ctx-change-request', // Request to change the current context.
 	context_change_accept: 'ctx-change-accept', // The requestee accepts the context change request.
 	context_change_reject: 'ctx-change-reject', // One of the parties rejects the change request with a given reason.
-	empty_context: 'ctx-null', // Sent when the user navigates away from the active context to a page without an active context.
-	out_of_sync_error: 'sync-error', // Sent if there is an error that results in a desync.
+	context_update_request: 'ctx-update-request', // Request the current context fron the server/client. Can be used to re-sync the context.
+	context_update: 'ctx-update', // Sent unilaterally or by request by either the server or the client to notify the other party of their current context state.
 } as const;
 
 export type MessageKindEnumKeys = ValuesOf<typeof MessageKindEnum>;
