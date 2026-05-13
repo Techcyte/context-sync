@@ -25,6 +25,14 @@ synchronized to the server at a time. Multiple clients can be connected to the s
 disconnects the server can choose to make one of the remaining connected clients the synchronized client. The
 synchronized client is the client the LIS application will synchronize context with.
 
+## Testing
+
+During development it can be very helpful to see what context sync is doing, especially if there are any errors.
+In Techcyte in the `Company info` page in the `Context sync` section `Verbose mode` can be toggled on or off.
+When `Verbose mode` is enabled context sync will print everything it is doing to the console. This includes what
+messages it sends from Techcyte, what messages it receives, and it's current state. All context sync output to the
+console is prefixed with `CtxSync:` so it can be filtered to reduce the noise in the console.
+
 ## Message Kinds
 
 The following message types are used to maintain context synchronization:
