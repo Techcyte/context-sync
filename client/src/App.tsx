@@ -94,7 +94,9 @@ function App() {
 		}
 
 		const options: ContextSyncOptions = {
-			url: 'ws://localhost:4002/cm',
+			// The server only accepts secure WebSockets (wss://). This requires the
+			// server's self-signed CA to be trusted by this machine, see the README.
+			url: 'wss://localhost:4002/cm',
 			version: 1,
 			application: 'Demo',
 			debugMode: true,
