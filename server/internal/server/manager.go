@@ -144,6 +144,11 @@ func (m *Manager) HandleMessage(client model.Client, message model.Message) {
 			return
 		}
 
+		if len(message.Context) > 0 {
+			m.CurrentCase = m.CaseNumberFromContext(message.Context)
+			m.Context = message.Context
+		}
+
 		m.SyncedClientID = client.ID()
 		message := util.NewSubAcceptMessage(APPLICATION_NAME, &timeout, m.CurrentCase)
 		m.SendMessage(client, message)

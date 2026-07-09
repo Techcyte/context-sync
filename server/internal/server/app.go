@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"tcs/internal/certs"
 	"tcs/internal/model"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -45,7 +46,7 @@ func NewApp(manager *Manager) App {
 
 func (app App) Init() tea.Cmd {
 	go func() {
-		err := http.ListenAndServe(app.Manager.Address, nil)
+		err := http.ListenAndServeTLS(app.Manager.Address, certs.ServerCertFile, certs.ServerKeyFile, nil)
 		if err != nil {
 			panic(err)
 		}

@@ -5,11 +5,14 @@ This is a demo repository for the Local Interconnection Service Protocol (LIS Pr
 The `server` folder contains the code for the example server. This is a `go` project. See the `README.md` file in the
 `server` folder for instructions on running it.
 
-The `client` folder contains the code for a sample client. This is an `npm` project. See the `README.md` file in the
+The `client` folder contains the code for a very sample client. This is an `npm` project. See the `README.md` file in the
 `client` folder for instructions on running it.
 
 It's important to note that the demo client and the demo server are meant to be starting points to show the flow of the
 protocol and do not handle edge cases adequately.
+
+The client included here isn't needed for development or testing, it is just a small example. See the `Testing
+with Fusion` section below for more info on testing.
 
 ## Overview
 
@@ -25,13 +28,25 @@ synchronized to the server at a time. Multiple clients can be connected to the s
 disconnects the server can choose to make one of the remaining connected clients the synchronized client. The
 synchronized client is the client the LIS application will synchronize context with.
 
-## Testing
+## Secure WebSockets (TLS)
 
-During development it can be very helpful to see what context sync is doing, especially if there are any errors.
-In Techcyte in the `Company info` page in the `Context sync` section `Verbose mode` can be toggled on or off.
-When `Verbose mode` is enabled context sync will print everything it is doing to the console. This includes what
-messages it sends from Techcyte, what messages it receives, and it's current state. All context sync output to the
-console is prefixed with `CtxSync:` so it can be filtered to reduce the noise in the console.
+The protocol runs over **secure WebSockets (`wss://`)**. Because Fusion is a web application, browsers will not open an
+unencrypted `ws://` connection from a secure page, so the LIS application ( aka the server) must serve `wss://`. 
+That requires a TLS certificate. For local development the demo server generates and trusts its own self-signed certificate
+on startup, on both Windows and macOS, with no extra software to install. See the `README.md` in the `server` folder for how this
+works and what you'll need to do to trust it in your browser.
+
+# Testing with Fusion
+
+In order for context sync to work on Fusion the company must be setup correctly. Make sure the `External integrations` and
+`External integrations context sync` feature switches are enabled. Once those two feature switches are enabled go to the
+`Company info` page and scroll down to the `Context sync` section. To use the test server included here the URL must be set
+to `wss://localhost:4002/cm` and the version must be set to `1`. Enable verbose mode to see what context sync is doing in
+the console in Chrome. Everything related to context sync will be prefixed with `CtxSync:` so you can filter by that to make
+it much easier to see what's happening.
+
+Note that the URL only needs to be set to `wss://localhost:4002/cm` to use the test server included here. For your LIS the URL
+can be different. However the URL must start with `wss://`.
 
 ## Message Kinds
 
